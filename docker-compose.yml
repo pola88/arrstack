@@ -105,3 +105,40 @@ services:
    ports:
      - 8191:8191
    restart: unless-stopped
+
+  mediabot:
+    build:
+      context: ./mediabot
+      dockerfile: Dockerfile
+    container_name: mediabot
+    restart: unless-stopped
+    ports:
+      - "8222:8222"
+    volumes:
+      - /mnt/media:/data:ro
+      - mediabot_db:/app/data
+    env_file:
+      - ./mediabot/.env
+    environment:
+      - WEBHOOK_HOST=0.0.0.0
+      - WEBHOOK_PORT=8222
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8222/health')",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mediabot_db:
