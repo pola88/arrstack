@@ -1,0 +1,70 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# mediabot — Telegram Media Request Bot
+# Add this service to your existing docker-compose or run standalone.
+#
+# If running standalone:
+#   docker compose up -d
+#
+# If merging into your existing stack:
+#   Copy the `mediabot` service block into your main docker-compose.yml
+#   and make sure media_network matches your existing network name.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  mediabot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mediabot
+    restart: unless-stopped
+
+    # Internal webhook receiver (Sonarr/Radarr/Plex push events here)
+    ports:
+      - "8222:8222"
+
+    volumes:
+      # Read-only media mount for disk space reporting
+      - /mnt/media:/data:ro
+      # Persistent SQLite database
+      - mediabot_db:/app/data
+
+    env_file:
+      - .env
+
+    environment:
+      - WEBHOOK_HOST=0.0.0.0
+      - WEBHOOK_PORT=8222
+
+    networks:
+      - media_network
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8222/health')",
+        ]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mediabot_db:
+
+networks:
+  media_network:
+    # Change to 'true' if your arr stack already created this network
+    # and set the name below to match it.
+    external: false
+    # name: your_existing_network_name

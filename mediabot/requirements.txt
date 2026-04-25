@@ -1,0 +1,6 @@
+python-telegram-bot[webhooks]==21.6
+httpx==0.27.2
+aiohttp==3.10.5
+aiosqlite==0.20.0
+pydantic-settings==2.5.2
+humanize==4.10.0

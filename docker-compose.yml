@@ -1,0 +1,107 @@
+version: "3.8"
+
+services:
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Argentina/Buenos_Aires
+      - WEBUI_PORT=8080
+    volumes:
+      - /mnt/media/docker/qbittorrent:/config
+      - /mnt/media:/data
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    volumes:
+      - /mnt/media/docker/prowlarr:/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Argentina/Buenos_Aires
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    depends_on:
+      - qbittorrent
+      - prowlarr
+    volumes:
+      - /mnt/media/docker/sonarr:/config
+      - /mnt/media:/data
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Argentina/Buenos_Aires
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    depends_on:
+      - qbittorrent
+      - prowlarr
+    volumes:
+      - /mnt/media/docker/radarr:/config
+      - /mnt/media:/data
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Argentina/Buenos_Aires
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    depends_on:
+      - sonarr
+      - radarr
+    volumes:
+      - /mnt/media/docker/bazarr:/config
+      - /mnt/media:/data
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Argentina/Buenos_Aires
+    ports:
+      - 6767:6767
+    restart: unless-stopped
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    network_mode: host
+    volumes:
+      - /mnt/media/docker/plex:/config
+      - /mnt/media:/data
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Argentina/Buenos_Aires
+      - VERSION=docker
+    restart: unless-stopped
+    
+  flaresolverr:
+   image: ghcr.io/flaresolverr/flaresolverr:latest
+   container_name: flaresolverr
+   environment:
+     - LOG_LEVEL=info
+     - TZ=America/Argentina/Buenos_Aires
+   ports:
+     - 8191:8191
+   restart: unless-stopped
