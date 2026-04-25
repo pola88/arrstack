@@ -1,5 +1,6 @@
 from .base import BaseArrClient
 from ..config import settings
+import httpx
 
 
 class RadarrClient(BaseArrClient):
@@ -28,12 +29,23 @@ class RadarrClient(BaseArrClient):
     async def update_movie(self, movie_id: int, payload: dict) -> dict:
         return await self.put(f"movie/{movie_id}", payload)
 
+    async def delete_movie(self, movie_id: int, blacklist: bool = False):
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.delete(
+                f"{self.base_url}/api/v3/movie/{movie_id}",
+                headers=self.headers,
+                params={
+                    "deleteFiles": False,       # nunca borra archivos del disco
+                    "addImportExclusion": blacklist,
+                },
+            )
+            resp.raise_for_status()
+
     async def get_queue(self) -> list:
         data = await self.get("queue", {"pageSize": 50})
         return data.get("records", [])
 
     async def delete_queue_item(self, item_id: int, blacklist: bool = False):
-        import httpx
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.delete(
                 f"{self.base_url}/api/v3/queue/{item_id}",
@@ -59,3 +71,10 @@ class RadarrClient(BaseArrClient):
             "sortDirection": "descending",
         })
         return data.get("records", [])
+
+    async def health_check(self) -> bool:
+        try:
+            await self.get("system/status")
+            return True
+        except Exception:
+            return False

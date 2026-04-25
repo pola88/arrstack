@@ -1,5 +1,6 @@
 from .base import BaseArrClient
 from ..config import settings
+import httpx
 
 
 class SonarrClient(BaseArrClient):
@@ -32,6 +33,18 @@ class SonarrClient(BaseArrClient):
     async def update_series(self, series_id: int, payload: dict) -> dict:
         return await self.put(f"series/{series_id}", payload)
 
+    async def delete_series(self, series_id: int, blacklist: bool = False):
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.delete(
+                f"{self.base_url}/api/v3/series/{series_id}",
+                headers=self.headers,
+                params={
+                    "deleteFiles": False,       # nunca borra archivos del disco
+                    "addImportListExclusion": blacklist,
+                },
+            )
+            resp.raise_for_status()
+
     async def set_monitor(self, series_id: int, monitored: bool) -> dict:
         series = await self.get(f"series/{series_id}")
         series["monitored"] = monitored
@@ -42,7 +55,6 @@ class SonarrClient(BaseArrClient):
         return data.get("records", [])
 
     async def delete_queue_item(self, item_id: int, blacklist: bool = False):
-        import httpx
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.delete(
                 f"{self.base_url}/api/v3/queue/{item_id}",
@@ -68,3 +80,10 @@ class SonarrClient(BaseArrClient):
             "sortDirection": "descending",
         })
         return data.get("records", [])
+
+    async def health_check(self) -> bool:
+        try:
+            await self.get("system/status")
+            return True
+        except Exception:
+            return False

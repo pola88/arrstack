@@ -17,6 +17,7 @@ from .handlers.history import history_command
 from .handlers.queue import queue_command, queue_callback
 from .handlers.quality import quality_command, quality_callback
 from .handlers.plex import plex_command
+from .handlers.delete import delete_command, delete_callback
 
 from .notifications.dispatcher import NotificationDispatcher
 from .notifications.webhook_server import WebhookServer
@@ -91,12 +92,14 @@ def build_app():
     app.add_handler(CommandHandler("monitor",   monitor_command))
     app.add_handler(CommandHandler("subtitles", subtitles_command))
     app.add_handler(CommandHandler("plex",      plex_command))
+    app.add_handler(CommandHandler("delete",    delete_command))
 
     app.add_handler(CallbackQueryHandler(movie_callback,          pattern="^addmovie:"))
     app.add_handler(CallbackQueryHandler(series_pick_callback,    pattern="^series_pick:"))
     app.add_handler(CallbackQueryHandler(series_monitor_callback, pattern="^series_monitor:"))
     app.add_handler(CallbackQueryHandler(queue_callback,          pattern="^queue_"))
     app.add_handler(CallbackQueryHandler(quality_callback,        pattern="^quality_"))
+    app.add_handler(CallbackQueryHandler(delete_callback,         pattern="^delete_"))
 
     return app
 

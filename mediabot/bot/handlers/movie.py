@@ -1,5 +1,5 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
 from telegram.ext import ContextTypes
 from ..auth import restricted
 from ..services.radarr import RadarrClient
@@ -7,6 +7,62 @@ from ..db.models import log_request
 
 logger = logging.getLogger(__name__)
 radarr = RadarrClient()
+
+PAGE_SIZE = 5
+
+
+def _build_results_keyboard(page: int, total: int) -> InlineKeyboardMarkup:
+    count = min(PAGE_SIZE, total - page * PAGE_SIZE)
+    select_row = [
+        InlineKeyboardButton(str(i + 1), callback_data=f"addmovie_pick:{page}:{i}")
+        for i in range(count)
+    ]
+    rows = [select_row]
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("◀️ Anterior", callback_data=f"addmovie_page:{page - 1}"))
+    if (page + 1) * PAGE_SIZE < total:
+        nav.append(InlineKeyboardButton("Siguiente ▶️", callback_data=f"addmovie_page:{page + 1}"))
+    if nav:
+        rows.append(nav)
+
+    rows.append([InlineKeyboardButton("🚫 Cancelar búsqueda", callback_data="addmovie_cancel_search")])
+
+    return InlineKeyboardMarkup(rows)
+
+
+def _build_results_text(results: list, page: int) -> str:
+    start = page * PAGE_SIZE
+    lines = [f"*🎬 Resultados ({len(results)} encontrados) — pág. {page + 1}:*\n"]
+    for i, m in enumerate(results[start:start + PAGE_SIZE], 1):
+        title = m.get("title", "?")
+        year = m.get("year", "?")
+        lines.append(f"*{i}.* {title} ({year})")
+    lines.append("\n_Tocá el número para ver detalles y confirmar._")
+    return "\n".join(lines)
+
+
+async def _send_results_page(chat_id: int, context, results: list, page: int):
+    start = page * PAGE_SIZE
+    page_results = results[start:start + PAGE_SIZE]
+
+    media_group = []
+    for i, m in enumerate(page_results):
+        poster = m.get("remotePoster")
+        if poster:
+            caption = f"{i + 1}. {m.get('title', '?')} ({m.get('year', '?')})"
+            media_group.append(InputMediaPhoto(media=poster, caption=caption))
+
+    if media_group:
+        await context.bot.send_media_group(chat_id=chat_id, media=media_group)
+
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=_build_results_text(results, page),
+        parse_mode="Markdown",
+        reply_markup=_build_results_keyboard(page, len(results)),
+    )
 
 
 @restricted
@@ -18,34 +74,24 @@ async def movie_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    await update.message.reply_text(f"🔍 Buscando *{query}*...", parse_mode="Markdown")
+    msg = await update.message.reply_text(f"🔍 Buscando *{query}*...", parse_mode="Markdown")
 
     try:
         results = await radarr.search_movie(query)
     except Exception as e:
-        await update.message.reply_text(f"❌ Error en Radarr: {e}")
+        await msg.edit_text(f"❌ Error en Radarr: {e}")
         return
 
     if not results:
-        await update.message.reply_text("No se encontraron resultados.")
+        await msg.edit_text("No se encontraron resultados.")
         return
 
-    top = results[:5]
-    context.bot_data[f"movie_search_{update.effective_user.id}"] = top
+    user_id = update.effective_user.id
+    context.bot_data[f"movie_search_{user_id}"] = results
+    context.bot_data[f"movie_page_{user_id}"] = 0
 
-    keyboard = [
-        [InlineKeyboardButton(
-            f"{m.get('title', '?')} ({m.get('year', '?')})",
-            callback_data=f"addmovie:{m.get('tmdbId', 0)}:{i}",
-        )]
-        for i, m in enumerate(top)
-    ]
-
-    await update.message.reply_text(
-        f"Encontré *{len(results)}* resultado(s). ¿Cuál querés añadir?",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(keyboard),
-    )
+    await msg.delete()
+    await _send_results_page(update.effective_chat.id, context, results, page=0)
 
 
 async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -53,19 +99,36 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
     user_id = query.from_user.id
+    results = context.bot_data.get(f"movie_search_{user_id}", [])
 
-    # ── Elegir resultado → mostrar póster + tarjeta de confirmación ───────────
-    if data.startswith("addmovie:") and "confirm" not in data and data != "addmovie_cancel":
-        parts = data.split(":")
-        tmdb_id = int(parts[1])
-        idx = int(parts[2])
+    # ── Cancelar desde el listado ─────────────────────────────────────────────
+    if data == "addmovie_cancel_search":
+        await query.edit_message_text("OK, búsqueda cancelada.")
+        context.bot_data.pop(f"movie_search_{user_id}", None)
+        context.bot_data.pop(f"movie_page_{user_id}", None)
+        return
 
-        cached = context.bot_data.get(f"movie_search_{user_id}", [])
-        if not cached:
+    # ── Cambiar página ────────────────────────────────────────────────────────
+    if data.startswith("addmovie_page:"):
+        if not results:
+            await query.edit_message_text("⏰ Sesión expirada. Ejecutá /movie de nuevo.")
+            return
+        page = int(data.split(":")[1])
+        context.bot_data[f"movie_page_{user_id}"] = page
+        await query.delete_message()
+        await _send_results_page(query.message.chat_id, context, results, page)
+        return
+
+    # ── Elegir resultado → tarjeta de confirmación con póster ─────────────────
+    if data.startswith("addmovie_pick:"):
+        if not results:
             await query.edit_message_text("⏰ Sesión expirada. Ejecutá /movie de nuevo.")
             return
 
-        movie = cached[idx]
+        _, page, idx = data.split(":")
+        page, idx = int(page), int(idx)
+        movie = results[page * PAGE_SIZE + idx]
+
         title = movie.get("title", "?")
         year = movie.get("year", 0)
         overview = movie.get("overview", "Sin descripción.")
@@ -88,13 +151,17 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption = "\n".join(caption_lines)
 
         context.bot_data[f"movie_confirm_{user_id}"] = {
-            "tmdb_id": tmdb_id, "title": title, "year": year
+            "tmdb_id": movie.get("tmdbId", 0),
+            "title": title,
+            "year": year,
         }
 
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Añadir",   callback_data=f"addmovie_confirm:{tmdb_id}"),
-            InlineKeyboardButton("❌ Cancelar", callback_data="addmovie_cancel"),
-        ]])
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Añadir",   callback_data=f"addmovie_confirm:{movie.get('tmdbId', 0)}"),
+                InlineKeyboardButton("❌ Cancelar", callback_data="addmovie_cancel"),
+            ]
+        ])
 
         await query.delete_message()
 
@@ -113,15 +180,16 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 parse_mode="Markdown",
                 reply_markup=keyboard,
             )
+        return
 
     # ── Confirmar → añadir a Radarr ───────────────────────────────────────────
-    elif data.startswith("addmovie_confirm:"):
+    if data.startswith("addmovie_confirm:"):
         tmdb_id = int(data.split(":")[1])
         cached = context.bot_data.get(f"movie_confirm_{user_id}", {})
         title = cached.get("title", "?")
         year = cached.get("year", 0)
 
-        await query.edit_message_caption("⏳ Añadiendo...")
+        await query.edit_message_caption("⏳ Añadiendo...", parse_mode="Markdown")
 
         try:
             await radarr.add_movie(tmdb_id=tmdb_id, title=title, year=year)
@@ -140,9 +208,12 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         context.bot_data.pop(f"movie_search_{user_id}", None)
         context.bot_data.pop(f"movie_confirm_{user_id}", None)
+        context.bot_data.pop(f"movie_page_{user_id}", None)
+        return
 
-    # ── Cancelar ──────────────────────────────────────────────────────────────
-    elif data == "addmovie_cancel":
+    # ── Cancelar desde la tarjeta de confirmación ─────────────────────────────
+    if data == "addmovie_cancel":
         await query.edit_message_caption("OK, cancelado.")
         context.bot_data.pop(f"movie_search_{user_id}", None)
         context.bot_data.pop(f"movie_confirm_{user_id}", None)
+        context.bot_data.pop(f"movie_page_{user_id}", None)
