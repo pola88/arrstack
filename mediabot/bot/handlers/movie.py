@@ -74,7 +74,7 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         genres = ", ".join(g.get("name", "") for g in movie.get("genres", [])[:3])
         runtime = movie.get("runtime", 0)
         rating = movie.get("ratings", {}).get("imdb", {}).get("value", 0)
-        poster_url = movie.get("remotePoster")  # URL pública de TMDB
+        poster_url = movie.get("remotePoster")
 
         caption_lines = [f"*{title} ({year})*\n"]
         if genres:
@@ -96,7 +96,6 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("❌ Cancelar", callback_data="addmovie_cancel"),
         ]])
 
-        # Borrar mensaje anterior y enviar póster con caption
         await query.delete_message()
 
         if poster_url:
@@ -108,7 +107,6 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=keyboard,
             )
         else:
-            # Sin póster — mensaje de texto normal
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=caption,
