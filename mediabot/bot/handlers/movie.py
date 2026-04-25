@@ -51,62 +51,11 @@ async def movie_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    parts = query.data.split(":")
-    tmdb_id = int(parts[1])
-    idx = int(parts[2])
-    user_id = query.from_user.id
-
-    cached = context.bot_data.get(f"movie_search_{user_id}", [])
-    if not cached:
-        await query.edit_message_text("⏰ Sesión expirada. Ejecutá /movie de nuevo.")
-        return
-
-    movie = cached[idx]
-    title = movie.get("title", "?")
-    year = movie.get("year", 0)
-    overview = movie.get("overview", "Sin descripción.")
-    if len(overview) > 200:
-        overview = overview[:200] + "..."
-    genres = ", ".join(g.get("name", "") for g in movie.get("genres", [])[:3])
-    runtime = movie.get("runtime", 0)
-    rating = movie.get("ratings", {}).get("imdb", {}).get("value", 0)
-
-    # Confirmation card before adding
-    info_lines = [f"*{title} ({year})*\n"]
-    if genres:
-        info_lines.append(f"🎭 {genres}")
-    if runtime:
-        info_lines.append(f"⏱ {runtime} min")
-    if rating:
-        info_lines.append(f"⭐ {rating:.1f} IMDb")
-    info_lines.append(f"\n_{overview}_")
-    info_lines.append("\n¿Confirmás la descarga?")
-
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("✅ Añadir", callback_data=f"addmovie_confirm:{tmdb_id}:{idx}"),
-            InlineKeyboardButton("❌ Cancelar", callback_data="addmovie_cancel"),
-        ]
-    ])
-
-    context.bot_data[f"movie_confirm_{user_id}"] = {"tmdb_id": tmdb_id, "title": title, "year": year}
-
-    await query.edit_message_text(
-        "\n".join(info_lines),
-        parse_mode="Markdown",
-        reply_markup=keyboard,
-    )
-
-
-async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
     data = query.data
     user_id = query.from_user.id
 
-    # ── Pick result → show confirmation card ─────────────────────────────────
-    if data.startswith("addmovie:") and "confirm" not in data:
+    # ── Elegir resultado → mostrar póster + tarjeta de confirmación ───────────
+    if data.startswith("addmovie:") and "confirm" not in data and data != "addmovie_cancel":
         parts = data.split(":")
         tmdb_id = int(parts[1])
         idx = int(parts[2])
@@ -120,65 +69,82 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = movie.get("title", "?")
         year = movie.get("year", 0)
         overview = movie.get("overview", "Sin descripción.")
-        if len(overview) > 200:
-            overview = overview[:200] + "..."
+        if len(overview) > 250:
+            overview = overview[:250] + "..."
         genres = ", ".join(g.get("name", "") for g in movie.get("genres", [])[:3])
         runtime = movie.get("runtime", 0)
         rating = movie.get("ratings", {}).get("imdb", {}).get("value", 0)
+        poster_url = movie.get("remotePoster")  # URL pública de TMDB
 
-        info_lines = [f"*{title} ({year})*\n"]
+        caption_lines = [f"*{title} ({year})*\n"]
         if genres:
-            info_lines.append(f"🎭 {genres}")
+            caption_lines.append(f"🎭 {genres}")
         if runtime:
-            info_lines.append(f"⏱ {runtime} min")
+            caption_lines.append(f"⏱ {runtime} min")
         if rating:
-            info_lines.append(f"⭐ {rating:.1f} IMDb")
-        info_lines.append(f"\n_{overview}_\n")
-        info_lines.append("*¿Confirmás la descarga?*")
+            caption_lines.append(f"⭐ {rating:.1f} IMDb")
+        caption_lines.append(f"\n_{overview}_\n")
+        caption_lines.append("*¿Confirmás la descarga?*")
+        caption = "\n".join(caption_lines)
 
         context.bot_data[f"movie_confirm_{user_id}"] = {
             "tmdb_id": tmdb_id, "title": title, "year": year
         }
 
-        await query.edit_message_text(
-            "\n".join(info_lines),
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("✅ Añadir",   callback_data=f"addmovie_confirm:{tmdb_id}"),
-                InlineKeyboardButton("❌ Cancelar", callback_data="addmovie_cancel"),
-            ]]),
-        )
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Añadir",   callback_data=f"addmovie_confirm:{tmdb_id}"),
+            InlineKeyboardButton("❌ Cancelar", callback_data="addmovie_cancel"),
+        ]])
 
-    # ── Confirm → actually add ────────────────────────────────────────────────
+        # Borrar mensaje anterior y enviar póster con caption
+        await query.delete_message()
+
+        if poster_url:
+            await context.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=poster_url,
+                caption=caption,
+                parse_mode="Markdown",
+                reply_markup=keyboard,
+            )
+        else:
+            # Sin póster — mensaje de texto normal
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=caption,
+                parse_mode="Markdown",
+                reply_markup=keyboard,
+            )
+
+    # ── Confirmar → añadir a Radarr ───────────────────────────────────────────
     elif data.startswith("addmovie_confirm:"):
         tmdb_id = int(data.split(":")[1])
         cached = context.bot_data.get(f"movie_confirm_{user_id}", {})
         title = cached.get("title", "?")
         year = cached.get("year", 0)
 
-        await query.edit_message_text(
-            f"⏳ Añadiendo *{title} ({year})*...", parse_mode="Markdown"
-        )
+        await query.edit_message_caption("⏳ Añadiendo...")
+
         try:
             await radarr.add_movie(tmdb_id=tmdb_id, title=title, year=year)
             await log_request(user_id, "movie", title, tmdb_id)
-            await query.edit_message_text(
+            await query.edit_message_caption(
                 f"✅ *{title} ({year})* añadida a Radarr y en cola de descarga.",
                 parse_mode="Markdown",
             )
         except Exception as e:
             if "already exists" in str(e).lower():
-                await query.edit_message_text(
+                await query.edit_message_caption(
                     f"ℹ️ *{title}* ya está en Radarr.", parse_mode="Markdown"
                 )
             else:
-                await query.edit_message_text(f"❌ Error al añadir: {e}")
+                await query.edit_message_caption(f"❌ Error al añadir: {e}")
 
         context.bot_data.pop(f"movie_search_{user_id}", None)
         context.bot_data.pop(f"movie_confirm_{user_id}", None)
 
-    # ── Cancel ────────────────────────────────────────────────────────────────
+    # ── Cancelar ──────────────────────────────────────────────────────────────
     elif data == "addmovie_cancel":
-        await query.edit_message_text("OK, cancelado.")
+        await query.edit_message_caption("OK, cancelado.")
         context.bot_data.pop(f"movie_search_{user_id}", None)
         context.bot_data.pop(f"movie_confirm_{user_id}", None)
