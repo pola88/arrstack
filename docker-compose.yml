@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
@@ -16,6 +14,8 @@ services:
       - 8080:8080
       - 6881:6881
       - 6881:6881/udp
+    networks:
+      - arrstack_net
     restart: unless-stopped
 
   prowlarr:
@@ -29,6 +29,8 @@ services:
       - TZ=America/Argentina/Buenos_Aires
     ports:
       - 9696:9696
+    networks:
+      - arrstack_net
     restart: unless-stopped
 
   sonarr:
@@ -46,6 +48,8 @@ services:
       - TZ=America/Argentina/Buenos_Aires
     ports:
       - 8989:8989
+    networks:
+      - arrstack_net
     restart: unless-stopped
 
   radarr:
@@ -63,6 +67,8 @@ services:
       - TZ=America/Argentina/Buenos_Aires
     ports:
       - 7878:7878
+    networks:
+      - arrstack_net
     restart: unless-stopped
 
   bazarr:
@@ -80,6 +86,8 @@ services:
       - TZ=America/Argentina/Buenos_Aires
     ports:
       - 6767:6767
+    networks:
+      - arrstack_net
     restart: unless-stopped
 
   plex:
@@ -104,6 +112,8 @@ services:
      - TZ=America/Argentina/Buenos_Aires
    ports:
      - 8191:8191
+   networks:
+     - arrstack_net
    restart: unless-stopped
 
   mediabot:
@@ -139,6 +149,11 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - arrstack_net
 
 volumes:
   mediabot_db:
+
+networks:
+  arrstack_net:
