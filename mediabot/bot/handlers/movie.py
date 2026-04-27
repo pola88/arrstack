@@ -44,18 +44,18 @@ def _build_results_text(results: list, page: int) -> str:
 
 
 async def _send_results_page(chat_id: int, context, results: list, page: int):
-    start = page * PAGE_SIZE
-    page_results = results[start:start + PAGE_SIZE]
+    # start = page * PAGE_SIZE
+    # page_results = results[start:start + PAGE_SIZE]
 
-    media_group = []
-    for i, m in enumerate(page_results):
-        poster = m.get("remotePoster")
-        if poster:
-            caption = f"{i + 1}. {m.get('title', '?')} ({m.get('year', '?')})"
-            media_group.append(InputMediaPhoto(media=poster, caption=caption))
+    # media_group = []
+    # for i, m in enumerate(page_results):
+    #     poster = m.get("remotePoster")
+    #     if poster:
+    #         caption = f"{i + 1}. {m.get('title', '?')} ({m.get('year', '?')})"
+    #         media_group.append(InputMediaPhoto(media=poster, caption=caption))
 
-    if media_group:
-        await context.bot.send_media_group(chat_id=chat_id, media=media_group)
+    # if media_group:
+    #     await context.bot.send_media_group(chat_id=chat_id, media=media_group)
 
     await context.bot.send_message(
         chat_id=chat_id,
