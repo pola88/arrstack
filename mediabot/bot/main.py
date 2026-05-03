@@ -31,10 +31,6 @@ logger = logging.getLogger(__name__)
 
 
 async def post_init(application):
-    """
-    Called by PTB after the event loop is running.
-    Safe place to start aiohttp server and background tasks.
-    """
     await init_db()
 
     dispatcher = NotificationDispatcher(
@@ -64,11 +60,12 @@ async def post_init(application):
         BotCommand("history",   "Historial reciente"),
         BotCommand("quality",   "Cambiar perfil de calidad"),
         BotCommand("monitor",   "Gestionar monitoreo de series"),
+        BotCommand("delete",    "Eliminar película o serie"),
         BotCommand("subtitles", "Subtítulos pendientes"),
         BotCommand("plex",      "Buscar en tu biblioteca Plex"),
         BotCommand("help",      "Lista de comandos"),
     ])
-    logger.info("Bot commands registered in Telegram menu")
+    logger.info("Bot commands registered")
 
 
 def build_app():
@@ -79,6 +76,7 @@ def build_app():
         .build()
     )
 
+    # ── Commands ──────────────────────────────────────────────────────────────
     app.add_handler(CommandHandler("start",     help_command))
     app.add_handler(CommandHandler("help",      help_command))
     app.add_handler(CommandHandler("movie",     movie_command))
@@ -90,16 +88,35 @@ def build_app():
     app.add_handler(CommandHandler("history",   history_command))
     app.add_handler(CommandHandler("quality",   quality_command))
     app.add_handler(CommandHandler("monitor",   monitor_command))
+    app.add_handler(CommandHandler("delete",    delete_command))
     app.add_handler(CommandHandler("subtitles", subtitles_command))
     app.add_handler(CommandHandler("plex",      plex_command))
-    app.add_handler(CommandHandler("delete",    delete_command))
 
-    app.add_handler(CallbackQueryHandler(movie_callback,          pattern="^addmovie_"))
-    app.add_handler(CallbackQueryHandler(series_pick_callback,    pattern="^series_(pick:|page:|cancel_search$)"))
-    app.add_handler(CallbackQueryHandler(series_monitor_callback, pattern="^series_monitor:"))
-    app.add_handler(CallbackQueryHandler(queue_callback,          pattern="^queue_"))
-    app.add_handler(CallbackQueryHandler(quality_callback,        pattern="^quality_"))
-    app.add_handler(CallbackQueryHandler(delete_callback,         pattern="^delete_"))
+    # ── Callbacks — patterns cubren todos los prefijos posibles ───────────────
+    app.add_handler(CallbackQueryHandler(
+        movie_callback,
+        pattern="^mv_"           # mv_pick: mv_page: mv_confirm mv_cancel
+    ))
+    app.add_handler(CallbackQueryHandler(
+        series_pick_callback,
+        pattern="^sv_pick:|^sv_page:|^sv_cancel$"
+    ))
+    app.add_handler(CallbackQueryHandler(
+        series_monitor_callback,
+        pattern="^sv_monitor:"
+    ))
+    app.add_handler(CallbackQueryHandler(
+        queue_callback,
+        pattern="^queue_"
+    ))
+    app.add_handler(CallbackQueryHandler(
+        quality_callback,
+        pattern="^quality_"
+    ))
+    app.add_handler(CallbackQueryHandler(
+        delete_callback,
+        pattern="^delete_"
+    ))
 
     return app
 
