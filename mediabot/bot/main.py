@@ -95,7 +95,7 @@ def build_app():
     app.add_handler(CommandHandler("delete",    delete_command))
 
     app.add_handler(CallbackQueryHandler(movie_callback,          pattern="^addmovie_"))
-    app.add_handler(CallbackQueryHandler(series_pick_callback,    pattern=r"^series_(pick:|page:|cancel_search$)"))
+    app.add_handler(CallbackQueryHandler(series_pick_callback,    pattern="^series_(pick:|page:|cancel_search$)"))
     app.add_handler(CallbackQueryHandler(series_monitor_callback, pattern="^series_monitor:"))
     app.add_handler(CallbackQueryHandler(queue_callback,          pattern="^queue_"))
     app.add_handler(CallbackQueryHandler(quality_callback,        pattern="^quality_"))
