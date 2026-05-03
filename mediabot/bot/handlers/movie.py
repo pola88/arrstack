@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from ..auth import restricted
@@ -43,6 +44,41 @@ def _results_text(results: list, page: int) -> str:
         lines.append(f"*{i}.* {title} ({year})")
     lines.append("\n_Tocá el número para ver detalles._")
     return "\n".join(lines)
+
+
+def _format_genres(genres_raw: Any) -> str:
+    if isinstance(genres_raw, str):
+        return genres_raw.strip()
+    if not isinstance(genres_raw, list):
+        return ""
+
+    names: list[str] = []
+    for item in genres_raw[:3]:
+        if isinstance(item, str):
+            name = item.strip()
+        elif isinstance(item, dict):
+            name = str(item.get("name", "")).strip()
+        else:
+            name = ""
+        if name:
+            names.append(name)
+    return ", ".join(names)
+
+
+def _extract_imdb_rating(movie: dict[str, Any]) -> float:
+    ratings = movie.get("ratings", {})
+    if not isinstance(ratings, dict):
+        return 0.0
+
+    imdb = ratings.get("imdb", {})
+    if not isinstance(imdb, dict):
+        return 0.0
+
+    value = imdb.get("value", 0)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 @restricted
@@ -115,9 +151,9 @@ async def movie_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         overview = movie.get("overview", "Sin descripción.")
         if len(overview) > 250:
             overview = overview[:250] + "..."
-        genres = ", ".join(g if isinstance(g, str) else g.get("name", "") for g in movie.get("genres", [])[:3])
+        genres = _format_genres(movie.get("genres", []))
         runtime = movie.get("runtime", 0)
-        rating = movie.get("ratings", {}).get("imdb", {}).get("value", 0)
+        rating = _extract_imdb_rating(movie)
         poster_url = movie.get("remotePoster")
 
         lines = [f"*{title} ({year})*\n"]
