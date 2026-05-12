@@ -116,12 +116,29 @@ services:
     volumes:
       - /data:/data:ro
       - mediabot_db:/app/data
-    env_file:
-      - path: ./.env
-        required: false
+    # Compose reads project .env for ${...} substitution (no env_file in container).
     environment:
-      - WEBHOOK_HOST=0.0.0.0
-      - WEBHOOK_PORT=8222
+      WEBHOOK_HOST: "0.0.0.0"
+      WEBHOOK_PORT: "8222"
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_ALLOWED_USERS: ${TELEGRAM_ALLOWED_USERS}
+      RADARR_URL: ${RADARR_URL:-http://radarr:7878}
+      RADARR_API_KEY: ${RADARR_API_KEY:-}
+      SONARR_URL: ${SONARR_URL:-http://sonarr:8989}
+      SONARR_API_KEY: ${SONARR_API_KEY:-}
+      PROWLARR_URL: ${PROWLARR_URL:-http://prowlarr:9696}
+      PROWLARR_API_KEY: ${PROWLARR_API_KEY:-}
+      BAZARR_URL: ${BAZARR_URL:-http://bazarr:6767}
+      BAZARR_API_KEY: ${BAZARR_API_KEY:-}
+      QBIT_URL: ${QBIT_URL:-http://qbittorrent:8080}
+      QBIT_USER: ${QBIT_USER:-admin}
+      QBIT_PASS: ${QBIT_PASS:-}
+      PLEX_URL: ${PLEX_URL:-http://plex:32400}
+      PLEX_TOKEN: ${PLEX_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DISK_WARN_THRESHOLD_GB: ${DISK_WARN_THRESHOLD_GB:-50}
+      DATA_PATH: ${DATA_PATH:-/data}
+      DB_PATH: ${DB_PATH:-/app/data/mediabot.db}
     healthcheck:
       test:
         [
