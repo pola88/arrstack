@@ -1,5 +1,10 @@
-from pydantic_settings import BaseSettings
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Set
+
+# bot/config.py → repo root (parent of mediabot/)
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -39,8 +44,11 @@ class Settings(BaseSettings):
     def allowed_user_ids(self) -> Set[int]:
         return {int(uid.strip()) for uid in self.telegram_allowed_users.split(",")}
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_file=_REPO_ROOT / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()
