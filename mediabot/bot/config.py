@@ -3,8 +3,10 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Set
 
-# bot/config.py → repo root (parent of mediabot/)
+# bot/config.py → repo root (parent of mediabot/). Dotenv is optional: if missing,
+# settings come only from the process environment (Docker env_file, shell, CI).
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+_ROOT_ENV = _REPO_ROOT / ".env"
 
 
 class Settings(BaseSettings):
@@ -45,7 +47,7 @@ class Settings(BaseSettings):
         return {int(uid.strip()) for uid in self.telegram_allowed_users.split(",")}
 
     model_config = SettingsConfigDict(
-        env_file=_REPO_ROOT / ".env",
+        env_file=_ROOT_ENV if _ROOT_ENV.is_file() else None,
         env_file_encoding="utf-8",
         extra="ignore",
     )

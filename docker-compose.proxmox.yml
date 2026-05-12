@@ -117,7 +117,8 @@ services:
       - /data:/data:ro
       - mediabot_db:/app/data
     env_file:
-      - ./.env
+      - path: ./.env
+        required: false
     environment:
       - WEBHOOK_HOST=0.0.0.0
       - WEBHOOK_PORT=8222
