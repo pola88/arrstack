@@ -84,9 +84,12 @@ services:
     image: lscr.io/linuxserver/plex:latest
     container_name: plex
     network_mode: host
+    devices:
+      - /dev/dri:/dev/dri
     environment:
       - TZ=America/Argentina/Buenos_Aires
       - VERSION=docker
+      - LIBVA_DRIVER_NAME=i965
     volumes:
       - /data/docker/plex:/config
       - /data/media:/media
