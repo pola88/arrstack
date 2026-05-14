@@ -89,7 +89,6 @@ services:
     environment:
       - TZ=America/Argentina/Buenos_Aires
       - VERSION=docker
-      - LIBVA_DRIVER_NAME=i965
     volumes:
       - /data/docker/plex:/config
       - /data/media:/media
