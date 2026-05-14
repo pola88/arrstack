@@ -7,17 +7,24 @@ class RadarrClient(BaseArrClient):
     def __init__(self):
         super().__init__(settings.radarr_url, settings.radarr_api_key)
 
+    async def _get_root_folder(self) -> str:
+        folders = await self.get("rootfolder")
+        if not folders:
+            raise Exception("No hay carpetas raíz configuradas en Radarr")
+        return folders[0]["path"]
+
     async def search_movie(self, query: str) -> list:
         return await self.get("movie/lookup", {"term": query})
 
     async def add_movie(self, tmdb_id: int, title: str, year: int,
                         quality_profile_id: int = 1) -> dict:
+        root_path = await self._get_root_folder()
         payload = {
             "tmdbId": tmdb_id,
             "title": title,
             "year": year,
             "qualityProfileId": quality_profile_id,
-            "rootFolderPath": "/data/plexserver/movies",
+            "rootFolderPath": root_path,
             "monitored": True,
             "addOptions": {"searchForMovie": True},
         }
@@ -35,7 +42,7 @@ class RadarrClient(BaseArrClient):
                 f"{self.base_url}/api/v3/movie/{movie_id}",
                 headers=self.headers,
                 params={
-                    "deleteFiles": False,       # nunca borra archivos del disco
+                    "deleteFiles": False,
                     "addImportExclusion": blacklist,
                 },
             )

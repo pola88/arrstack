@@ -7,17 +7,24 @@ class SonarrClient(BaseArrClient):
     def __init__(self):
         super().__init__(settings.sonarr_url, settings.sonarr_api_key)
 
+    async def _get_root_folder(self) -> str:
+        folders = await self.get("rootfolder")
+        if not folders:
+            raise Exception("No hay carpetas raíz configuradas en Sonarr")
+        return folders[0]["path"]
+
     async def search_series(self, query: str) -> list:
         return await self.get("series/lookup", {"term": query})
 
     async def add_series(self, tvdb_id: int, title: str, monitor: str = "all",
                          quality_profile_id: int = 1, season_folder: bool = True) -> dict:
+        root_path = await self._get_root_folder()
         should_search = monitor not in ("future", "none")
         payload = {
             "tvdbId": tvdb_id,
             "title": title,
             "qualityProfileId": quality_profile_id,
-            "rootFolderPath": "/data/plexserver/series",
+            "rootFolderPath": root_path,
             "monitored": True,
             "seasonFolder": season_folder,
             "addOptions": {
@@ -39,7 +46,7 @@ class SonarrClient(BaseArrClient):
                 f"{self.base_url}/api/v3/series/{series_id}",
                 headers=self.headers,
                 params={
-                    "deleteFiles": False,       # nunca borra archivos del disco
+                    "deleteFiles": False,
                     "addImportListExclusion": blacklist,
                 },
             )
