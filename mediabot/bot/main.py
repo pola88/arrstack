@@ -18,6 +18,7 @@ from .handlers.queue import queue_command, queue_callback
 from .handlers.quality import quality_command, quality_callback
 from .handlers.plex import plex_command
 from .handlers.delete import delete_command, delete_callback
+from .handlers.update import update_cmd, update_callback
 
 from .notifications.dispatcher import NotificationDispatcher
 from .notifications.webhook_server import WebhookServer
@@ -91,6 +92,7 @@ def build_app():
     app.add_handler(CommandHandler("delete",    delete_command))
     app.add_handler(CommandHandler("subtitles", subtitles_command))
     app.add_handler(CommandHandler("plex",      plex_command))
+    app.add_handler(CommandHandler("update", update_cmd))
 
     # ── Callbacks — patterns cubren todos los prefijos posibles ───────────────
     app.add_handler(CallbackQueryHandler(
@@ -116,6 +118,10 @@ def build_app():
     app.add_handler(CallbackQueryHandler(
         delete_callback,
         pattern="^delete_"
+    ))
+    app.add_handler(CallbackQueryHandler(
+        update_callback,
+        pattern="^upd_"
     ))
 
     return app
