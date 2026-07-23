@@ -3,23 +3,27 @@ import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
  
-# Un webhook por stack en Portainer. Agregá acá los que tengas.
-WEBHOOKS = {
-    "arr-stack": os.environ.get("WEBHOOK_ARR_STACK", ""),
-    "monitoring": os.environ.get("WEBHOOK_MONITORING", ""),
+PORTAINER_URL = os.environ.get("PORTAINER_URL", "https://portainer.local:9443")
+PORTAINER_API_TOKEN = os.environ.get("PORTAINER_API_TOKEN", "")
+ 
+# Un stack por entrada: nombre -> (stack_id, endpoint_id)
+STACKS = {
+    "arr-stack": (int(os.environ.get("STACK_ID_ARR", "0")), int(os.environ.get("ENDPOINT_ID", "1"))),
+    "monitoring": (int(os.environ.get("STACK_ID_MONITORING", "0")), int(os.environ.get("ENDPOINT_ID", "1"))),
 }
+ 
  
 async def update_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text(
             "Uso: /update <stack>\nEj: /update arr-stack\n\n"
-            f"Stacks conocidos: {', '.join(WEBHOOKS)}"
+            f"Stacks conocidos: {', '.join(STACKS)}"
         )
         return
  
     stack = context.args[0].lower()
-    if stack not in WEBHOOKS or not WEBHOOKS[stack]:
-        await update.message.reply_text(f"No conozco el stack '{stack}' (o falta configurar su webhook).")
+    if stack not in STACKS or not STACKS[stack][0]:
+        await update.message.reply_text(f"No conozco el stack '{stack}' (o falta configurar su ID).")
         return
  
     keyboard = InlineKeyboardMarkup([[
@@ -42,21 +46,26 @@ async def update_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
  
     stack = query.data.replace("upd_", "")
-    webhook_url = WEBHOOKS.get(stack)
-    if not webhook_url:
+    stack_id, endpoint_id = STACKS.get(stack, (0, 0))
+    if not stack_id:
         await query.edit_message_text(f"No conozco el stack '{stack}'.")
         return
  
     await query.edit_message_text(f"⏳ Actualizando {stack}...")
  
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(webhook_url)
-        if resp.status_code in (200, 204):
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.put(
+                f"{PORTAINER_URL}/api/stacks/{stack_id}/git/redeploy",
+                params={"endpointId": endpoint_id},
+                headers={"X-API-Key": PORTAINER_API_TOKEN},
+                json={"RepullImageAndRedeploy": True},
+            )
+        if resp.status_code == 200:
             await query.edit_message_text(f"✅ {stack} actualizado (pull + redeploy).")
         else:
             await query.edit_message_text(
-                f"❌ Portainer devolvió {resp.status_code} al actualizar {stack}."
+                f"❌ Portainer devolvió {resp.status_code} al actualizar {stack}:\n{resp.text[:300]}"
             )
     except httpx.HTTPError as e:
         await query.edit_message_text(f"❌ Error al contactar Portainer: {e}")
