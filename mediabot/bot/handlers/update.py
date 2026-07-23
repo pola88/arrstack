@@ -56,7 +56,7 @@ async def update_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     headers = {"X-API-Key": PORTAINER_API_TOKEN}
  
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
+        async with httpx.AsyncClient(timeout=120, verify=False) as client:
             if kind == "git":
                 resp = await client.put(
                     f"{PORTAINER_URL}/api/stacks/{stack_id}/git/redeploy",
